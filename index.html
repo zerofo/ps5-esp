@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32 一键烧录</title>
+  <title>Ps5-AIO ESP32 一键烧录</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -206,7 +206,7 @@
       else if (state === 'done')    icon.textContent = '✓';
       else if (state === 'error')   icon.textContent = '✗';
 
-      if (detail) li.querySelector('.detail').textContent = detail;
+      li.querySelector('.detail').textContent = detail;
     }
 
     /**
@@ -327,7 +327,7 @@
           reportProgress: (fileIndex, written, total) => {
             if (!writeStarted) {
               writeStarted = true;
-              setStep('erase', 'done');
+              setStep('erase', 'done', '擦写完成');
               currentStepId = 'write';
               progressWrap.style.display = 'block';
             }
