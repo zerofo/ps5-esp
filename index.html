@@ -271,7 +271,10 @@
         setStep('connect', 'active');
         const port = await navigator.serial.requestPort();
         transport = new Transport(port, true);
-        loader = new ESPLoader(transport, 921600);
+        loader = new ESPLoader({
+          transport: transport,
+          baudrate: 921600,
+        });
         await loader.main();
         setStep('connect', 'done');
 
