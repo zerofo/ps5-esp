@@ -302,7 +302,7 @@
         // 4. 下载固件
         setStep('download', 'active');
         const fwFile = `${firmwarePrefix}-${flashTag}.bin`;
-        const fwUrl  = `firmware/${fwFile}`;
+        const fwUrl = `https://cdn.jsdelivr.net/gh/zerofo/esp_rom@main/firmware/${fwFile}`;
         const resp = await fetch(fwUrl);
 
         if (!resp.ok) {
