@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 一键烧录</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    h1 { font-size: 24px; margin-top: 0; margin-bottom: 8px; }
+    .hint { color: #666; font-size: 14px; margin-top: 0; }
+    .warning {
+      background: #fff8e1;
+      border-left: 4px solid #f0ad4e;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #8a6d3b;
+      line-height: 1.6;
+    }
+    .warning code {
+      background: rgba(0,0,0,0.06);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+    .flash-btn {
+      width: 100%;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 16px 0;
+    }
+    .flash-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(102,126,234,0.4);
+    }
+    .flash-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+    .status-panel { margin-top: 24px; }
+    #steps { list-style: none; padding: 0; margin: 0 0 16px 0; }
+    .step {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 15px;
+      transition: background 0.2s;
+    }
+    .step .icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .step .label { flex: 1; }
+    .step .detail { color: #888; font-size: 13px; margin-left: 8px; }
+
+    .step.pending { color: #aaa; }
+    .step.pending .icon { color: #ccc; }
+    .step.active { background: #eef2ff; color: #4c51bf; font-weight: 600; }
+    .step.done { color: #38a169; }
+    .step.done .icon { color: #38a169; }
+    .step.error { background: #fef2f2; color: #e53e3e; }
+    .step.error .icon { color: #e53e3e; }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #c7d2fe;
+      border-top-color: #4c51bf;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .progress-bar {
+      width: 100%;
+      height: 12px;
+      background: #e2e8f0;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      border-radius: 6px;
+      transition: width 0.15s ease-out;
+    }
+    #progress-text {
+      text-align: center;
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .success {
+      background: #f0fff4;
+      border: 1px solid #9ae6b4;
+      color: #276749;
+      padding: 14px 16px;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .error {
+      background: #fff5f5;
+      border: 1px solid #feb2b2;
+      color: #c53030;
+      padding: 14px 16px;
+      border-radius: 8px;
+      margin-top: 12px;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ESP32 一键烧录</h1>
+    <p class="hint">自动识别芯片型号与 Flash 大小，加载对应固件并烧录到 <code>0x0</code>。</p>
+    <p class="warning">
+      ⚠️ 烧录前将<b>全片擦除</b> Flash，设备上原有数据将被清除。<br>
+    </p>
+
+    <button id="flash-btn" class="flash-btn">🔌 一键烧录</button>
+
+    <div id="status-panel" class="status-panel" style="display:none;">
+      <ol id="steps"></ol>
+      <div id="progress-wrap" style="display:none;">
+        <div class="progress-bar"><div id="progress-fill"></div></div>
+        <div id="progress-text">0%</div>
+      </div>
+      <div id="result"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js@0.7.0/bundle.js';
+
+    const flashBtn    = document.getElementById('flash-btn');
+    const statusPanel = document.getElementById('status-panel');
+    const stepsEl     = document.getElementById('steps');
+    const progressWrap= document.getElementById('progress-wrap');
+    const progressFill= document.getElementById('progress-fill');
+    const progressText= document.getElementById('progress-text');
+    const resultEl    = document.getElementById('result');
+
+    const STEP_DEFS = [
+      { id: 'connect',      label: '连接设备' },
+      { id: 'identify',     label: '识别芯片型号' },
+      { id: 'detect_flash', label: '检测 Flash 大小' },
+      { id: 'download',     label: '下载固件' },
+      { id: 'erase',        label: '擦除 Flash（全片擦除）' },
+      { id: 'write',        label: '写入固件' },
+      { id: 'reset',        label: '复位设备' },
+    ];
+
+    let currentStepId = null;
+
+    function renderSteps() {
+      stepsEl.innerHTML = STEP_DEFS.map(s =>
+        `<li id="step-${s.id}" class="step pending">
+           <span class="icon">○</span>
+           <span class="label">${s.label}</span>
+           <span class="detail"></span>
+         </li>`
+      ).join('');
+    }
+
+    function setStep(id, state, detail = '') {
+      const li = document.getElementById(`step-${id}`);
+      if (!li) return;
+      if (state === 'active') currentStepId = id;
+      li.className = `step ${state}`;
+
+      const icon = li.querySelector('.icon');
+      if (state === 'pending')      icon.textContent = '○';
+      else if (state === 'active')  icon.innerHTML = '<span class="spinner"></span>';
+      else if (state === 'done')    icon.textContent = '✓';
+      else if (state === 'error')   icon.textContent = '✗';
+
+      if (detail) li.querySelector('.detail').textContent = detail;
+    }
+
+    /**
+     * 从 esptool-js 返回的原始芯片描述中，计算出固件文件名前缀。
+     *
+     * 映射规则（按顺序判断）：
+     *  1. 含 "S3-PICO" 的变体 → "esp32-s3"     （ESP32-S3-PICO-1）
+     *  2. 其他含 "PICO" 的变体 → "esp32-old"   （ESP32-PICO-D4）
+     *  3. 原始描述为纯 "ESP32" → "esp32-old"   （普通 ESP32）
+     *  4. 标准连字符型号 → 小写型号本身          （ESP32-C3 / ESP32-S31 / ESP32-C61 …）
+     *  5. 紧凑写法兜底 → "esp32-{后缀}"
+     */
+    function resolveFirmwarePrefix(rawChipName) {
+      const raw = (rawChipName || '').trim();
+      if (!raw) return '';
+
+      // 1. ESP32-S3-PICO-1 归入 esp32-s3
+      if (/S3[-_ ]?PICO/i.test(raw)) return 'esp32-s3';
+
+      // 2. 其他 PICO 变体 → esp32-old
+      if (/PICO/i.test(raw)) return 'esp32-old';
+
+      // 3. 原始描述就是 "ESP32"
+      if (/^ESP32$/i.test(raw)) return 'esp32-old';
+
+      // 4. 标准连字符型号
+      const hyphenMatch = raw.match(/ESP32-[A-Z0-9]+/i);
+      if (hyphenMatch) return hyphenMatch[0].toLowerCase();
+
+      // 5. 紧凑写法兜底（ESP32C3 → esp32-c3）
+      const compactMatch = raw.match(/ESP32([A-Z0-9]+)/i);
+      if (compactMatch) return `esp32-${compactMatch[1].toLowerCase()}`;
+
+      return '';
+    }
+
+    async function doFlash() {
+      if (!('serial' in navigator)) {
+        alert('当前浏览器不支持 Web Serial API，请使用桌面版 Chrome / Edge / Opera。');
+        return;
+      }
+      if (!window.isSecureContext) {
+        alert('请在 HTTPS 或 localhost 环境下使用本页面。');
+        return;
+      }
+
+      flashBtn.disabled = true;
+      flashBtn.textContent = '烧录中，请勿断开...';
+      statusPanel.style.display = 'block';
+      resultEl.textContent = '';
+      progressWrap.style.display = 'none';
+      progressFill.style.width = '0%';
+      progressText.textContent = '0%';
+      currentStepId = null;
+      renderSteps();
+
+      let loader = null;
+      let transport = null;
+
+      try {
+        // 1. 连接
+        setStep('connect', 'active');
+        const port = await navigator.serial.requestPort();
+        transport = new Transport(port, true);
+        loader = new ESPLoader(transport, 921600);
+        await loader.main();
+        setStep('connect', 'done');
+
+        // 2. 识别芯片 → 计算固件前缀
+        setStep('identify', 'active');
+        const rawChipName = loader.chip?.CHIP_NAME || loader.chipName || '';
+        const firmwarePrefix = resolveFirmwarePrefix(rawChipName);
+
+        if (!firmwarePrefix) {
+          throw new Error(`无法识别芯片型号（原始返回: "${rawChipName}"）`);
+        }
+        setStep('identify', 'done', rawChipName || firmwarePrefix);
+
+        // 3. 检测 Flash 大小
+        setStep('detect_flash', 'active');
+        let flashSize = await loader.detectFlashSize();
+
+        if (!flashSize) {
+          console.warn('Flash 大小检测失败，回退到 4MB');
+          flashSize = '4MB';
+        }
+        const flashTag = flashSize.toLowerCase().replace(/\s+/g, '');
+        setStep('detect_flash', 'done', flashSize);
+
+        // 4. 下载固件
+        setStep('download', 'active');
+        const fwFile = `${firmwarePrefix}-${flashTag}.bin`;
+        const fwUrl  = `firmware/${fwFile}`;
+        const resp = await fetch(fwUrl);
+
+        if (!resp.ok) {
+          throw new Error(
+            `固件下载失败 (HTTP ${resp.status})：${fwUrl}\n` +
+            `请确认 firmware/ 目录下存在该文件。`
+          );
+        }
+
+        const firmwareData = new Uint8Array(await resp.arrayBuffer());
+        setStep('download', 'done', `${(firmwareData.length / 1024).toFixed(1)} KB`);
+
+        // 5 + 6. 全片擦除 + 写入
+        setStep('erase', 'active', '请稍候…');
+        let writeStarted = false;
+
+        await loader.writeFlash({
+          fileArray: [{ data: firmwareData, address: 0x0 }],
+          flashSize: 'keep',
+          eraseAll: true,
+          compress: true,
+          reportProgress: (fileIndex, written, total) => {
+            if (!writeStarted) {
+              writeStarted = true;
+              setStep('erase', 'done');
+              currentStepId = 'write';
+              progressWrap.style.display = 'block';
+            }
+            const percent = Math.min(100, Math.round((written / total) * 100));
+            progressFill.style.width = percent + '%';
+            progressText.textContent = percent + '%';
+            setStep('write', 'active', percent + '%');
+          },
+        });
+
+        setStep('write', 'done', '100%');
+
+        // 7. 复位
+        setStep('reset', 'active');
+        try {
+          await loader.after('hard_reset');
+          setStep('reset', 'done');
+        } catch (e) {
+          console.warn('复位命令发送失败:', e);
+          setStep('reset', 'done', '（请手动复位）');
+        }
+
+        resultEl.innerHTML = `<div class="success">✅ 烧录完成！设备已复位，可以拔下。</div>`;
+
+      } catch (err) {
+        console.error(err);
+        const msg = err?.message || String(err);
+        const cancelled = /No port selected|user cancelled|The user aborted/i.test(msg);
+
+        if (currentStepId) {
+          setStep(currentStepId, cancelled ? 'pending' : 'error');
+        }
+        resultEl.innerHTML = cancelled
+          ? `<div class="error">已取消：未选择串口设备。</div>`
+          : `<div class="error">❌ 烧录失败：${msg.replace(/\n/g, '<br>')}</div>`;
+
+      } finally {
+        flashBtn.disabled = false;
+        flashBtn.textContent = '🔌 再次烧录';
+        try { if (transport) await transport.disconnect(); } catch (_) {}
+      }
+    }
+
+    flashBtn.addEventListener('click', doFlash);
+  </script>
+</body>
+</html>
