@@ -177,7 +177,7 @@
       <div id="result"></div>
     </div>
   </div>
-
+  <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@latest/dist/web-serial-polyfill.umd.min.js"></script>
   <script type="module">
     import { ESPLoader, Transport } from 'https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js';
     const flashBtn    = document.getElementById('flash-btn');
@@ -304,7 +304,11 @@
       try {
         // 1. 连接
         setStep('connect', 'active');
-        const port = await navigator.serial.requestPort();
+        const SerialPolyfill = window.WebSerialPolyfill;
+        // 如果 polyfill 存在就用它，否则回退到浏览器原生
+        const port = SerialPolyfill && SerialPolyfill.requestPort 
+          ? await SerialPolyfill.requestPort() 
+          : await navigator.serial.requestPort();
         transport = new Transport(port, true);
         loader = new ESPLoader({
           transport: transport,
