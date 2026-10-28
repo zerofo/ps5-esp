@@ -139,6 +139,19 @@
       margin-top: 12px;
       word-break: break-word;
     }
+    .chip-list { display: flex; flex-direction: column; gap: 6px; }
+    .chip-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: #f8fafc;
+      border: 1px solid #e2e8f0; border-radius: 8px;
+    }
+    .chip-name { font-weight: 600; color: #4c51bf; font-size: 15px; }
+    .chip-flash { display: flex; gap: 6px; }
+    .tag {
+      padding: 2px 10px; background: #eef2ff; color: #4c51bf;
+      border-radius: 12px; font-size: 12px; font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -150,6 +163,9 @@
     </p>
 
     <button id="flash-btn" class="flash-btn">🔌 一键烧录</button>
+    
+    <h2 style="font-size:18px;margin:28px 0 12px;">🎯 支持的芯片型号</h2>
+    <div id="chip-list">加载中…</div>
 
     <div id="status-panel" class="status-panel" style="display:none;">
       <ol id="steps"></ol>
@@ -372,5 +388,6 @@
 
     flashBtn.addEventListener('click', doFlash);
   </script>
+  <script src="firmware/chips.js"></script>
 </body>
 </html>
