@@ -160,6 +160,7 @@
     <p class="hint">自动识别芯片型号与 Flash 大小，加载对应固件并烧录到 <code>0x0</code>。</p>
     <p class="warning">
       ⚠️ 烧录前将<b>全片擦除</b> Flash，设备上原有数据将被清除。<br>
+      若设备 Flash 较大（如 32MB）但无精确档位固件，会自动降档使用较小 Flash 的固件（32→16→8→4MB）。可用容量会受限，但功能正常；<b>小 Flash 设备不会刷入大固件</b>。
     </p>
 
     <button id="flash-btn" class="flash-btn">🔌 一键烧录</button>
@@ -238,24 +239,38 @@
       const raw = (rawChipName || '').trim();
       if (!raw) return '';
 
-      // 1. ESP32-S3-PICO-1 归入 esp32-s3
       if (/S3[-_ ]?PICO/i.test(raw)) return 'esp32-s3';
-
-      // 2. 其他 PICO 变体 → esp32-old
       if (/PICO/i.test(raw)) return 'esp32-old';
-
-      // 3. 原始描述就是 "ESP32"
       if (/^ESP32$/i.test(raw)) return 'esp32-old';
 
-      // 4. 标准连字符型号
       const hyphenMatch = raw.match(/ESP32-[A-Z0-9]+/i);
       if (hyphenMatch) return hyphenMatch[0].toLowerCase();
 
-      // 5. 紧凑写法兜底（ESP32C3 → esp32-c3）
       const compactMatch = raw.match(/ESP32([A-Z0-9]+)/i);
       if (compactMatch) return `esp32-${compactMatch[1].toLowerCase()}`;
 
       return '';
+    }
+
+    /**
+     * 根据检测到的 Flash 大小，生成从大到小的固件候选列表。
+     *
+     * 规则：只降档，不升档（小 Flash 刷大固件会越界）。
+     *  32MB → ["32mb","16mb","8mb","4mb"]
+     *  16MB → ["16mb","8mb","4mb"]
+     *   8MB → ["8mb","4mb"]
+     *   4MB → ["4mb"]
+     *   2MB → ["2mb"]
+     */
+    function buildFlashCandidates(detectedFlashSize) {
+      const match = String(detectedFlashSize || '').match(/(\d+)\s*MB/i);
+      const detectedMB = match ? parseInt(match[1], 10) : 4;
+
+      const STANDARD = [64, 32, 16, 8, 4, 2];
+      const smaller = STANDARD.filter(s => s < detectedMB);
+      const list = [detectedMB, ...smaller];
+
+      return [...new Set(list)].map(s => `${s}mb`);
     }
 
     async function doFlash() {
@@ -280,6 +295,11 @@
 
       let loader = null;
       let transport = null;
+      // 用于成功提示里展示最终使用的固件
+      let firmwarePrefix = '';
+      let detectedFlashTag = '';
+      let usedFlashTag = '';
+      let downgraded = false;
 
       try {
         // 1. 连接
@@ -296,7 +316,7 @@
         // 2. 识别芯片 → 计算固件前缀
         setStep('identify', 'active');
         const rawChipName = loader.chip?.CHIP_NAME || loader.chipName || '';
-        const firmwarePrefix = resolveFirmwarePrefix(rawChipName);
+        firmwarePrefix = resolveFirmwarePrefix(rawChipName);
 
         if (!firmwarePrefix) {
           throw new Error(`无法识别芯片型号（原始返回: "${rawChipName}"）`);
@@ -311,24 +331,45 @@
           console.warn('Flash 大小检测失败，回退到 4MB');
           flashSize = '4MB';
         }
-        const flashTag = flashSize.toLowerCase().replace(/\s+/g, '');
+        detectedFlashTag = flashSize.toLowerCase().replace(/\s+/g, '');
         setStep('detect_flash', 'done', flashSize);
 
-        // 4. 下载固件
-        setStep('download', 'active');
-        const fwFile = `${firmwarePrefix}-${flashTag}.bin`;
-        const fwUrl = `/firmware/${fwFile}`;
-        const resp = await fetch(fwUrl);
+        // 4. 下载固件（精确匹配失败时按 32→16→8→4 降档）
+        setStep('download', 'active', '尝试精确匹配…');
+        const candidates = buildFlashCandidates(flashSize);
+        const tried = [];
+        let firmwareData = null;
 
-        if (!resp.ok) {
+        for (const tag of candidates) {
+          const fwFile = `${firmwarePrefix}-${tag}.bin`;
+          const fwUrl = `/firmware/${fwFile}`;
+          tried.push(tag);
+          setStep('download', 'active', `尝试 ${tag}…`);
+
+          try {
+            const resp = await fetch(fwUrl);
+            if (resp.ok) {
+              firmwareData = new Uint8Array(await resp.arrayBuffer());
+              usedFlashTag = tag;
+              break;
+            }
+          } catch (e) {
+            // 网络异常，继续尝试下一档
+            console.warn(`fetch ${fwUrl} 失败:`, e);
+          }
+        }
+
+        if (!firmwareData) {
           throw new Error(
-            `固件下载失败 (HTTP ${resp.status})：${fwUrl}\n` +
-            `请确认 firmware/ 目录下存在该文件。`
+            `未找到可用固件。已尝试：${tried.join('、')}\n` +
+            `请确认 firmware/ 目录下存在 ${firmwarePrefix}-*.bin。`
           );
         }
 
-        const firmwareData = new Uint8Array(await resp.arrayBuffer());
-        setStep('download', 'done', `${(firmwareData.length / 1024).toFixed(1)} KB`);
+        downgraded = usedFlashTag !== detectedFlashTag;
+        const downloadDetail = `${(firmwareData.length / 1024).toFixed(1)} KB` +
+          (downgraded ? `（降档 ${detectedFlashTag} → ${usedFlashTag}）` : '');
+        setStep('download', 'done', downloadDetail);
 
         // 5 + 6. 全片擦除 + 写入
         setStep('erase', 'active', '请稍候…');
@@ -342,7 +383,7 @@
           reportProgress: (fileIndex, written, total) => {
             if (!writeStarted) {
               writeStarted = true;
-              setStep('erase', 'done', '擦写完成');
+              setStep('erase', 'done', '擦除完成');
               currentStepId = 'write';
               progressWrap.style.display = 'block';
             }
@@ -365,7 +406,14 @@
           setStep('reset', 'done', '（请手动复位）');
         }
 
-        resultEl.innerHTML = `<div class="success">✅ 烧录完成！设备已复位，可以拔下。</div>`;
+        const usedFile = `${firmwarePrefix}-${usedFlashTag}.bin`;
+        const downgradeNote = downgraded
+          ? `<br><small style="color:#4a5568;">设备 Flash 为 ${detectedFlashTag}，已降档使用较小固件。</small>`
+          : '';
+        resultEl.innerHTML = `<div class="success">
+          ✅ 烧录完成！设备已复位，可以拔下。<br>
+          <small style="color:#4a5568;">使用固件：<code>${usedFile}</code></small>${downgradeNote}
+        </div>`;
 
       } catch (err) {
         console.error(err);
