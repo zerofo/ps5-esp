@@ -207,7 +207,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@latest/dist/web-serial-polyfill.umd.min.js"></script>
   <script type="module">
-    import { ESPLoader, Transport } from 'https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js';
+    import { ESPLoader, Transport, WebUSBSerialPort } from 'https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js';
 
     const flashBtn    = document.getElementById('flash-btn');
     const statusPanel = document.getElementById('status-panel');
@@ -341,7 +341,50 @@
         btnCancel.onclick = () => done(null);
       });
     }
-
+    /**
+     * 统一串口连接接口：依次尝试 原生Web Serial -> CH340 WebUSB -> Polyfill
+     * @returns {Promise<{port: any, type: string}>} 返回连接成功的 port 对象及方式
+     */
+    async function connectSerial() {
+      const errors = [];
+    
+      // 1. 尝试原生 Web Serial (桌面端 / 原生 USB 芯片)
+      if (navigator.serial && navigator.serial.requestPort) {
+        try {
+          const port = await navigator.serial.requestPort();
+          if (port) return { port, type: 'Native Web Serial' };
+        } catch (e) {
+          errors.push(`原生 Web Serial: ${e.message}`);
+        }
+      }
+    
+      // 2. 尝试 CH340 WebUSB (安卓端 CH340 芯片专用)
+      if (WebUSBSerialPort && WebUSBSerialPort.requestPort) {
+        try {
+          const usbPort = await WebUSBSerialPort.requestPort();
+          if (usbPort) {
+            return { port: usbPort.asSerialPort(), type: 'CH340 WebUSB' };
+          }
+        } catch (e) {
+          errors.push(`CH340 WebUSB: ${e.message}`);
+        }
+      }
+    
+      // 3. 尝试 WebSerialPolyfill (安卓端旧版兼容)
+      const SerialPolyfill = window.WebSerialPolyfill;
+      if (SerialPolyfill && SerialPolyfill.requestPort) {
+        try {
+          const port = await SerialPolyfill.requestPort();
+          if (port) return { port, type: 'Web Serial Polyfill' };
+        } catch (e) {
+          errors.push(`Polyfill: ${e.message}`);
+        }
+      }
+    
+      // 全部失败，抛出错误
+      throw new Error(`未找到兼容的串口设备。尝试记录：\n${errors.join('\n')}`);
+    }
+    
     async function doFlash() {
       if (!('serial' in navigator) && !window.WebSerialPolyfill) {
         alert('当前浏览器不支持 Web Serial API，请使用桌面版 Chrome / Edge / Opera。');
@@ -370,12 +413,9 @@
       let downgraded = false;
 
       try {
-        // 1. 连接
         setStep('connect', 'active');
-        const SerialPolyfill = window.WebSerialPolyfill;
-        const port = SerialPolyfill && SerialPolyfill.requestPort
-          ? await SerialPolyfill.requestPort()
-          : await navigator.serial.requestPort();
+        const { port, type } = await connectSerial();
+        setStep('connect', 'active', `已连接 (${type})`);
         transport = new Transport(port, true);
         loader = new ESPLoader({ transport, baudrate: 921600 });
         await loader.main();
