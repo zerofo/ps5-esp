@@ -388,7 +388,7 @@
 
         if (firmwarePrefix === 'ESP8266') {
           const variant = await choose8266Variant();
-          firmwarePrefix = variant === 'sd' ? '8266-sd' : '8266-8266';
+          firmwarePrefix = variant === 'sd' ? '8266sd_8266sd' : '8266_8266';
           setStep('identify', 'done', 'ESP8266 → ' + (variant === 'sd' ? 'SD 版' : '标准版'));
         } else {
           if (!firmwarePrefix) {
