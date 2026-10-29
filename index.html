@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ps5-AIO ESP32 一键烧录</title>
+  <title>Ps5-AIO ESP 一键烧录</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -21,8 +21,20 @@
       padding: 32px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.08);
     }
-    h1 { font-size: 24px; margin-top: 0; margin-bottom: 8px; }
+    h1 { font-size: 24px; margin-top: 0; margin-bottom: 6px; }
     .hint { color: #666; font-size: 14px; margin-top: 0; }
+    .build-info {
+      font-size: 12px;
+      color: #94a3b8;
+      margin: 0 0 10px;
+      line-height: 1.6;
+      word-break: break-all;
+    }
+    .build-info .sha {
+      color: #667eea; font-weight: 600;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+    .build-info .msg { color: #64748b; }
     .warning {
       background: #fff8e1;
       border-left: 4px solid #f0ad4e;
@@ -69,14 +81,9 @@
       transition: background 0.2s;
     }
     .step .icon {
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 12px;
-      font-weight: bold;
-      flex-shrink: 0;
+      width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      margin-right: 12px; font-weight: bold; flex-shrink: 0;
     }
     .step .label { flex: 1; }
     .step .detail { color: #888; font-size: 13px; margin-left: 8px; }
@@ -90,10 +97,8 @@
     .step.error .icon { color: #e53e3e; }
 
     .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid #c7d2fe;
-      border-top-color: #4c51bf;
+      width: 16px; height: 16px;
+      border: 2px solid #c7d2fe; border-top-color: #4c51bf;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       display: inline-block;
@@ -101,44 +106,31 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .progress-bar {
-      width: 100%;
-      height: 12px;
-      background: #e2e8f0;
-      border-radius: 6px;
-      overflow: hidden;
-      margin: 8px 0;
+      width: 100%; height: 12px;
+      background: #e2e8f0; border-radius: 6px;
+      overflow: hidden; margin: 8px 0;
     }
     #progress-fill {
-      height: 100%;
-      width: 0%;
+      height: 100%; width: 0%;
       background: linear-gradient(90deg, #667eea, #764ba2);
       border-radius: 6px;
       transition: width 0.15s ease-out;
     }
     #progress-text {
-      text-align: center;
-      font-size: 13px;
-      color: #666;
-      margin-bottom: 12px;
-      font-variant-numeric: tabular-nums;
+      text-align: center; font-size: 13px; color: #666;
+      margin-bottom: 12px; font-variant-numeric: tabular-nums;
     }
     .success {
-      background: #f0fff4;
-      border: 1px solid #9ae6b4;
-      color: #276749;
-      padding: 14px 16px;
-      border-radius: 8px;
-      margin-top: 12px;
+      background: #f0fff4; border: 1px solid #9ae6b4; color: #276749;
+      padding: 14px 16px; border-radius: 8px; margin-top: 12px;
     }
     .error {
-      background: #fff5f5;
-      border: 1px solid #feb2b2;
-      color: #c53030;
-      padding: 14px 16px;
-      border-radius: 8px;
-      margin-top: 12px;
+      background: #fff5f5; border: 1px solid #feb2b2; color: #c53030;
+      padding: 14px 16px; border-radius: 8px; margin-top: 12px;
       word-break: break-word;
     }
+
+    /* ===== 支持芯片列表 ===== */
     .chip-list { display: flex; flex-direction: column; gap: 6px; }
     .chip-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -152,19 +144,44 @@
       border-radius: 12px; font-size: 12px; font-weight: 500;
       font-variant-numeric: tabular-nums;
     }
+
+    /* ===== 8266 选择弹窗 ===== */
+    #modal-8266 {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.5); z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    #modal-8266 .box {
+      background: #fff; padding: 24px; border-radius: 12px;
+      max-width: 360px; width: 90%;
+      box-shadow: 0 4px 24px rgba(0,0,0,.2);
+    }
+    #modal-8266 h3 { margin: 0 0 8px; font-size: 18px; }
+    #modal-8266 p  { margin: 0 0 16px; color: #666; font-size: 14px; }
+    #modal-8266 button {
+      width: 100%; padding: 12px; margin-bottom: 8px;
+      font-size: 15px; border: 1px solid #e2e8f0;
+      border-radius: 8px; background: #f8fafc; cursor: pointer;
+    }
+    #modal-8266 button:hover { background: #eef2ff; border-color: #c7d2fe; }
+    #modal-8266 button.cancel {
+      border: none; background: none;
+      color: #94a3b8; font-size: 13px; padding: 8px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Ps5-AIO ESP32 一键烧录</h1>
-    <p class="hint">自动识别芯片型号与 Flash 大小，加载对应固件并烧录到 <code>0x0</code>。</p>
+    <h1>Ps5-AIO ESP 一键烧录</h1>
+    <div id="build-info" class="build-info">版本加载中…</div>
+    <p class="hint">自动识别芯片型号（emmm 8266也行吧）与 Flash 大小，加载对应固件并烧录到 <code>0x0</code>。</p>
     <p class="warning">
       ⚠️ 烧录前将<b>全片擦除</b> Flash，设备上原有数据将被清除。<br>
       若设备 Flash 较大（如 32MB）但无精确档位固件，会自动降档使用较小 Flash 的固件（32→16→8→4MB）。可用容量会受限，但功能正常；<b>小 Flash 设备不会刷入大固件</b>。
     </p>
 
     <button id="flash-btn" class="flash-btn">🔌 一键烧录</button>
-    
+
     <h2 style="font-size:18px;margin:28px 0 12px;">🎯 支持的芯片型号</h2>
     <div id="chip-list">加载中…</div>
 
@@ -177,9 +194,21 @@
       <div id="result"></div>
     </div>
   </div>
+
+  <div id="modal-8266">
+    <div class="box">
+      <h3>选择固件版本</h3>
+      <p>检测到 ESP8266 芯片，请选择要烧录的版本：</p>
+      <button id="btn-8266-normal">8266（标准版）</button>
+      <button id="btn-8266-sd">8266sd（SD 卡版）</button>
+      <button id="btn-8266-cancel" class="cancel">取消</button>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@latest/dist/web-serial-polyfill.umd.min.js"></script>
   <script type="module">
     import { ESPLoader, Transport } from 'https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js';
+
     const flashBtn    = document.getElementById('flash-btn');
     const statusPanel = document.getElementById('status-panel');
     const stepsEl     = document.getElementById('steps');
@@ -187,6 +216,19 @@
     const progressFill= document.getElementById('progress-fill');
     const progressText= document.getElementById('progress-text');
     const resultEl    = document.getElementById('result');
+
+    // ===== 版本信息 =====
+    (function renderBuildInfo() {
+      const el = document.getElementById('build-info');
+      const b = window.BUILD_INFO;
+      if (!el) return;
+      if (!b) { el.textContent = '版本信息不可用'; return; }
+      const esc = s => String(s ?? '').replace(/[&<>"']/g,
+        c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+      el.innerHTML =
+        `版本 <span class="sha">${esc(b.sha)}</span> · ${esc(b.time)}<br>` +
+        `<span class="msg" title="${esc(b.message)}">${esc(b.message)}</span>`;
+    })();
 
     const STEP_DEFS = [
       { id: 'connect',      label: '连接设备' },
@@ -229,15 +271,18 @@
      * 从 esptool-js 返回的原始芯片描述中，计算出固件文件名前缀。
      *
      * 映射规则（按顺序判断）：
-     *  1. 含 "S3-PICO" 的变体 → "esp32-s3"     （ESP32-S3-PICO-1）
-     *  2. 其他含 "PICO" 的变体 → "esp32-old"   （ESP32-PICO-D4）
-     *  3. 原始描述为纯 "ESP32" → "esp32-old"   （普通 ESP32）
-     *  4. 标准连字符型号 → 小写型号本身          （ESP32-C3 / ESP32-S31 / ESP32-C61 …）
-     *  5. 紧凑写法兜底 → "esp32-{后缀}"
+     *  - ESP8266      → "ESP8266"（特殊标记，由调用方弹窗选择标准版 / SD 版）
+     *  - S3-PICO      → "esp32-s3"
+     *  - 其他 PICO    → "esp32-old"
+     *  - 纯 ESP32     → "esp32-old"
+     *  - ESP32-XXXX   → "esp32-xxxx"
+     *  - ESP32XXXX    → "esp32-xxxx"
      */
     function resolveFirmwarePrefix(rawChipName) {
       const raw = (rawChipName || '').trim();
       if (!raw) return '';
+
+      if (/ESP8266/i.test(raw)) return 'ESP8266';
 
       if (/S3[-_ ]?PICO/i.test(raw)) return 'esp32-s3';
       if (/PICO/i.test(raw)) return 'esp32-old';
@@ -254,13 +299,7 @@
 
     /**
      * 根据检测到的 Flash 大小，生成从大到小的固件候选列表。
-     *
-     * 规则：只降档，不升档（小 Flash 刷大固件会越界）。
-     *  32MB → ["32mb","16mb","8mb","4mb"]
-     *  16MB → ["16mb","8mb","4mb"]
-     *   8MB → ["8mb","4mb"]
-     *   4MB → ["4mb"]
-     *   2MB → ["2mb"]
+     * 规则：只降档，不升档。
      */
     function buildFlashCandidates(detectedFlashSize) {
       const match = String(detectedFlashSize || '').match(/(\d+)\s*MB/i);
@@ -273,8 +312,38 @@
       return [...new Set(list)].map(s => `${s}mb`);
     }
 
+    /**
+     * ESP8266 弹窗，返回 "normal" / "sd"；用户取消则 reject。
+     */
+    function choose8266Variant() {
+      return new Promise((resolve, reject) => {
+        const modal = document.getElementById('modal-8266');
+        modal.style.display = 'flex';
+
+        const btnNormal = document.getElementById('btn-8266-normal');
+        const btnSd     = document.getElementById('btn-8266-sd');
+        const btnCancel = document.getElementById('btn-8266-cancel');
+
+        const cleanup = () => {
+          modal.style.display = 'none';
+          btnNormal.onclick = null;
+          btnSd.onclick = null;
+          btnCancel.onclick = null;
+        };
+        const done = (val) => {
+          cleanup();
+          if (val) resolve(val);
+          else reject(new Error('user cancelled variant selection'));
+        };
+
+        btnNormal.onclick = () => done('normal');
+        btnSd.onclick     = () => done('sd');
+        btnCancel.onclick = () => done(null);
+      });
+    }
+
     async function doFlash() {
-      if (!('serial' in navigator)) {
+      if (!('serial' in navigator) && !window.WebSerialPolyfill) {
         alert('当前浏览器不支持 Web Serial API，请使用桌面版 Chrome / Edge / Opera。');
         return;
       }
@@ -295,7 +364,6 @@
 
       let loader = null;
       let transport = null;
-      // 用于成功提示里展示最终使用的固件
       let firmwarePrefix = '';
       let detectedFlashTag = '';
       let usedFlashTag = '';
@@ -305,15 +373,11 @@
         // 1. 连接
         setStep('connect', 'active');
         const SerialPolyfill = window.WebSerialPolyfill;
-        // 如果 polyfill 存在就用它，否则回退到浏览器原生
-        const port = SerialPolyfill && SerialPolyfill.requestPort 
-          ? await SerialPolyfill.requestPort() 
+        const port = SerialPolyfill && SerialPolyfill.requestPort
+          ? await SerialPolyfill.requestPort()
           : await navigator.serial.requestPort();
         transport = new Transport(port, true);
-        loader = new ESPLoader({
-          transport: transport,
-          baudrate: 921600,
-        });
+        loader = new ESPLoader({ transport, baudrate: 921600 });
         await loader.main();
         setStep('connect', 'done');
 
@@ -322,15 +386,20 @@
         const rawChipName = loader.chip?.CHIP_NAME || loader.chipName || '';
         firmwarePrefix = resolveFirmwarePrefix(rawChipName);
 
-        if (!firmwarePrefix) {
-          throw new Error(`无法识别芯片型号（原始返回: "${rawChipName}"）`);
+        if (firmwarePrefix === 'ESP8266') {
+          const variant = await choose8266Variant();
+          firmwarePrefix = variant === 'sd' ? '8266-sd' : '8266-8266';
+          setStep('identify', 'done', 'ESP8266 → ' + (variant === 'sd' ? 'SD 版' : '标准版'));
+        } else {
+          if (!firmwarePrefix) {
+            throw new Error(`无法识别芯片型号（原始返回: "${rawChipName}"）`);
+          }
+          setStep('identify', 'done', rawChipName || firmwarePrefix);
         }
-        setStep('identify', 'done', rawChipName || firmwarePrefix);
 
         // 3. 检测 Flash 大小
         setStep('detect_flash', 'active');
         let flashSize = await loader.detectFlashSize();
-
         if (!flashSize) {
           console.warn('Flash 大小检测失败，回退到 4MB');
           flashSize = '4MB';
@@ -338,27 +407,27 @@
         detectedFlashTag = flashSize.toLowerCase().replace(/\s+/g, '');
         setStep('detect_flash', 'done', flashSize);
 
-        // 4. 下载固件（精确匹配失败时按 32→16→8→4 降档）
-        setStep('download', 'active', '尝试精确匹配…');
-        const candidates = buildFlashCandidates(flashSize);
+        // 4. 下载固件（ESP8266 固定 4mb；ESP32 按 32→16→8→4 降档）
+        setStep('download', 'active', '尝试匹配…');
+        const candidates = firmwarePrefix.startsWith('8266')
+          ? ['4mb']
+          : buildFlashCandidates(flashSize);
         const tried = [];
         let firmwareData = null;
 
         for (const tag of candidates) {
           const fwFile = `${firmwarePrefix}-${tag}.bin`;
-          const fwUrl = `/firmware/${fwFile}`;
+          const fwUrl  = `firmware/${fwFile}`;
           tried.push(tag);
           setStep('download', 'active', `尝试 ${tag}…`);
-
           try {
-            const resp = await fetch(fwUrl);
+            const resp = await fetch(fwUrl, { cache: 'no-cache' });
             if (resp.ok) {
               firmwareData = new Uint8Array(await resp.arrayBuffer());
               usedFlashTag = tag;
               break;
             }
           } catch (e) {
-            // 网络异常，继续尝试下一档
             console.warn(`fetch ${fwUrl} 失败:`, e);
           }
         }
@@ -422,13 +491,13 @@
       } catch (err) {
         console.error(err);
         const msg = err?.message || String(err);
-        const cancelled = /No port selected|user cancelled|The user aborted/i.test(msg);
+        const cancelled = /No port selected|user cancelled|The user aborted|cancelled variant/i.test(msg);
 
         if (currentStepId) {
           setStep(currentStepId, cancelled ? 'pending' : 'error');
         }
         resultEl.innerHTML = cancelled
-          ? `<div class="error">已取消：未选择串口设备。</div>`
+          ? `<div class="error">已取消。</div>`
           : `<div class="error">❌ 烧录失败：${msg.replace(/\n/g, '<br>')}</div>`;
 
       } finally {
@@ -440,6 +509,8 @@
 
     flashBtn.addEventListener('click', doFlash);
   </script>
+
+  <script src="firmware/build-info.js"></script>
   <script src="firmware/chips.js"></script>
 </body>
 </html>
