@@ -1,1 +1,1 @@
-window.BUILD_INFO = {"sha": "401b03a", "message": "fix relapse", "time": "2026-10-31 08:33 UTC"};
+window.BUILD_INFO = {"sha": "ae4ad95", "message": "fix pldmgr load", "time": "2026-10-31 11:47 UTC"};
