@@ -1,1 +1,1 @@
-window.BUILD_INFO = {"sha": "fd998f5", "message": "autoldr download", "time": "2026-10-31 08:20 UTC"};
+window.BUILD_INFO = {"sha": "401b03a", "message": "fix relapse", "time": "2026-10-31 08:33 UTC"};
