@@ -4,6 +4,9 @@
 
 ## 🌐 网页端在线烧录
 
+## [链接: ps5-esp.pages.dev](https://ps5-esp.pages.dev)
+## [链接: zerofo.github.io/ps5-esp](https://zerofo.github.io/ps5-esp)
+
 访问部署好的静态网页（支持桌面端 Chrome / Edge / Opera）。
 
 ### ✨ 核心特性
@@ -50,8 +53,8 @@
 #### 3. 一键配置 download0.dat 与升级屏蔽
 - **使用方式**：将 `download0.dat` 放入 U 盘，通过菜单触发。
 - **特性**：
-- 自动扫描 PS5 内的 YouTube 应用（支持同时处理多个区的 YouTube, 一键将 download0.dat  拷贝至 多个YouTube应用对应download 内。
-- 一键应用升级屏蔽插件，阻止应用后台强制更新。
+  - 自动扫描 PS5 内的 YouTube 应用（支持同时处理多个区的 YouTube, 一键将 download0.dat  拷贝至 多个YouTube应用对应download 内。
+  - 一键应用升级屏蔽插件，阻止应用后台强制更新。
 
 ### 🧩 其他通用插件
 固件内置了大量实用通用插件。根据设备不同的 Flash Size（4MB / 8MB / 16MB），会提供不同的插件支持。
