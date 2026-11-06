@@ -154,36 +154,14 @@
       box-shadow: 0 2px 6px rgba(102,126,234,0.3);
     }
 
-    /* ===== 8266 选择弹窗 ===== */
-    #modal-8266 {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.5); z-index: 1000;
-      align-items: center; justify-content: center;
-    }
-    #modal-8266 .box {
-      background: #fff; padding: 24px; border-radius: 12px;
-      max-width: 360px; width: 90%;
-      box-shadow: 0 4px 24px rgba(0,0,0,.2);
-    }
-    #modal-8266 h3 { margin: 0 0 8px; font-size: 18px; }
-    #modal-8266 p  { margin: 0 0 16px; color: #666; font-size: 14px; }
-    #modal-8266 button {
-      width: 100%; padding: 12px; margin-bottom: 8px;
-      font-size: 15px; border: 1px solid #e2e8f0;
-      border-radius: 8px; background: #f8fafc; cursor: pointer;
-    }
-    #modal-8266 button:hover { background: #eef2ff; border-color: #c7d2fe; }
-    #modal-8266 button.cancel {
-      border: none; background: none;
-      color: #94a3b8; font-size: 13px; padding: 8px;
-    }
+
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Ps5-AIO ESP 一键烧录</h1>
     <div id="build-info" class="build-info">版本加载中…</div>
-    <p class="hint">自动识别芯片型号（emmm 8266也行吧）与 Flash 大小，加载对应固件并烧录到 <code>0x0</code>。</p>
+    <p class="hint">自动识别芯片型号 与 Flash 大小，加载对应固件并烧录到 <code>0x0</code>。</p>
     <p class="warning">
       ⚠️ 烧录前将<b>全片擦除</b> Flash，设备上原有数据将被清除。<br>
       若设备 Flash 较大（如 32MB）但无精确档位固件，会自动降档使用较小 Flash 的固件（32→16→8→4MB）。可用容量会受限，但功能正常；<b>小 Flash 设备不会刷入大固件</b>。
@@ -204,15 +182,6 @@
     </div>
   </div>
 
-  <div id="modal-8266">
-    <div class="box">
-      <h3>选择固件版本</h3>
-      <p>检测到 ESP8266 芯片，请选择要烧录的版本：</p>
-      <button id="btn-8266-normal">8266（标准版）</button>
-      <button id="btn-8266-sd">8266sd（SD 卡版）</button>
-      <button id="btn-8266-cancel" class="cancel">取消</button>
-    </div>
-  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@latest/dist/web-serial-polyfill.umd.min.js"></script>
   <script type="module">
@@ -280,7 +249,6 @@
      * 从 esptool-js 返回的原始芯片描述中，计算出固件文件名前缀。
      *
      * 映射规则（按顺序判断）：
-     *  - ESP8266      → "ESP8266"（特殊标记，由调用方弹窗选择标准版 / SD 版）
      *  - S3-PICO      → "esp32-s3"
      *  - 其他 PICO    → "esp32-old"
      *  - 纯 ESP32     → "esp32-old"
@@ -290,8 +258,6 @@
     function resolveFirmwarePrefix(rawChipName) {
       const raw = (rawChipName || '').trim();
       if (!raw) return '';
-
-      if (/ESP8266/i.test(raw)) return 'ESP8266';
 
       if (/S3[-_ ]?PICO/i.test(raw)) return 'esp32-s3';
       if (/PICO/i.test(raw)) return 'esp32-old';
@@ -321,35 +287,7 @@
       return [...new Set(list)].map(s => `${s}mb`);
     }
 
-    /**
-     * ESP8266 弹窗，返回 "normal" / "sd"；用户取消则 reject。
-     */
-    function choose8266Variant() {
-      return new Promise((resolve, reject) => {
-        const modal = document.getElementById('modal-8266');
-        modal.style.display = 'flex';
-
-        const btnNormal = document.getElementById('btn-8266-normal');
-        const btnSd     = document.getElementById('btn-8266-sd');
-        const btnCancel = document.getElementById('btn-8266-cancel');
-
-        const cleanup = () => {
-          modal.style.display = 'none';
-          btnNormal.onclick = null;
-          btnSd.onclick = null;
-          btnCancel.onclick = null;
-        };
-        const done = (val) => {
-          cleanup();
-          if (val) resolve(val);
-          else reject(new Error('user cancelled variant selection'));
-        };
-
-        btnNormal.onclick = () => done('normal');
-        btnSd.onclick     = () => done('sd');
-        btnCancel.onclick = () => done(null);
-      });
-    }
+   
     /**
      * 统一串口连接接口：依次尝试 原生Web Serial -> CH340 WebUSB -> Polyfill
      * @returns {Promise<{port: any, type: string}>} 返回连接成功的 port 对象及方式
@@ -435,16 +373,11 @@
         const rawChipName = loader.chip?.CHIP_NAME || loader.chipName || '';
         firmwarePrefix = resolveFirmwarePrefix(rawChipName);
 
-        if (firmwarePrefix === 'ESP8266') {
-          const variant = await choose8266Variant();
-          firmwarePrefix = variant === 'sd' ? '8266sd_8266sd' : '8266_8266';
-          setStep('identify', 'done', 'ESP8266 → ' + (variant === 'sd' ? 'SD 版' : '标准版'));
-        } else {
-          if (!firmwarePrefix) {
-            throw new Error(`无法识别芯片型号（原始返回: "${rawChipName}"）`);
-          }
-          setStep('identify', 'done', rawChipName || firmwarePrefix);
+      
+        if (!firmwarePrefix) {
+          throw new Error(`无法识别芯片型号（原始返回: "${rawChipName}"）`);
         }
+        setStep('identify', 'done', rawChipName || firmwarePrefix);
 
         // 3. 检测 Flash 大小
         setStep('detect_flash', 'active');
@@ -456,11 +389,8 @@
         detectedFlashTag = flashSize.toLowerCase().replace(/\s+/g, '');
         setStep('detect_flash', 'done', flashSize);
 
-        // 4. 下载固件（ESP8266 固定 4mb；ESP32 按 32→16→8→4 降档）
         setStep('download', 'active', '尝试匹配…');
-        const candidates = firmwarePrefix.startsWith('8266')
-          ? ['4mb']
-          : buildFlashCandidates(flashSize);
+        const candidates = buildFlashCandidates(flashSize);
         const tried = [];
         let firmwareData = null;
 
