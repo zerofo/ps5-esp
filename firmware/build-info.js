@@ -1,1 +1,1 @@
-window.BUILD_INFO = {"sha": "3ec1e57", "message": "fix web only", "time": "2026-11-10 14:46 UTC"};
+window.BUILD_INFO = {"sha": "c8c2317", "message": "set 8m", "time": "2026-11-11 15:15 UTC"};
