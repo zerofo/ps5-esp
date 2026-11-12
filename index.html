@@ -103,6 +103,7 @@
       animation: spin 0.8s linear infinite;
       display: inline-block;
     }
+    
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .progress-bar {
@@ -153,7 +154,38 @@
       color: #3730a3;
       box-shadow: 0 2px 6px rgba(102,126,234,0.3);
     }
-
+    .page-footer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 3vh;
+      min-height: 36px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 16px;
+      text-align: center;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-top: 1px solid #e2e8f0;
+      box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+    }
+    .page-footer .heart { color: #e53e3e; }
+    .page-footer .name {
+      font-weight: 600;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: #4c51bf;
+    }
 
   </style>
 </head>
@@ -181,7 +213,10 @@
       <div id="result"></div>
     </div>
   </div>
-
+  <footer class="page-footer">
+    <span class="heart">❤</span>
+    <span>感谢 <span class="name">微脉电玩</span> 长期协助测试</span>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/web-serial-polyfill@latest/dist/web-serial-polyfill.umd.min.js"></script>
   <script type="module">
