@@ -1,1 +1,1 @@
-window.BUILD_INFO = {"sha": "0bd7e19", "message": "best relapse", "time": "2026-11-12 15:28 UTC"};
+window.BUILD_INFO = {"sha": "5907e15", "message": "Add additional ELF files to min8_List", "time": "2026-11-13 09:42 UTC"};
