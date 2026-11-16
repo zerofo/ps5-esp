@@ -1,1 +1,1 @@
-window.BUILD_INFO = {"sha": "67cceb8", "message": "删除etaHEN2.5", "time": "2026-11-16 03:11 UTC"};
+window.BUILD_INFO = {"sha": "4d87db1", "message": "fix payload list", "time": "2026-11-16 04:19 UTC"};
