@@ -1,1 +1,1 @@
-window.BUILD_INFO = {"sha": "c52f611", "message": "fix payload list", "time": "2026-11-16 05:24 UTC"};
+window.BUILD_INFO = {"sha": "775a944", "message": "new utmx2", "time": "2026-11-26 13:32 UTC"};
